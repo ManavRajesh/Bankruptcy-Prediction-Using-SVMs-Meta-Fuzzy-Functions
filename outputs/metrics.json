@@ -1,0 +1,20 @@
+{
+  "best_mff": {
+    "auc": 1.0,
+    "c": 2,
+    "m": 1.6,
+    "branch": "rbf",
+    "cluster_idx": 0
+  },
+  "test_auc": 1.0,
+  "confusion_matrix": [
+    [
+      64,
+      0
+    ],
+    [
+      16,
+      0
+    ]
+  ]
+}
