@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bankruptcy Prediction — SVM Ensemble + Meta Fuzzy Functions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Geist:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#0f0e0d;--paper:#f5f2ec;--cream:#ede9e0;--line:#c8c2b4;
+      --danger:#c0392b;--safe:#1a6b3c;--warn:#b35c00;
+      --accent:#1c3d6e;--accent2:#7b2d2d;
+      --serif:'Instrument Serif',Georgia,serif;
+      --mono:'IBM Plex Mono',monospace;
+      --sans:'Geist',system-ui,sans-serif;
+    }
+    body{background:var(--paper);color:var(--ink);font-family:var(--sans);min-height:100vh}
+
+    .masthead{border-bottom:2px solid var(--ink);padding:18px 28px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .masthead-left{display:flex;flex-direction:column;gap:2px}
+    .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#666;border-left:3px solid var(--accent2);padding-left:8px}
+    .title{font-family:var(--serif);font-size:clamp(22px,3.5vw,38px);line-height:1.05;color:var(--ink)}
+    .title em{font-style:italic;color:var(--accent2)}
+    .badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+    .badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border:1px solid var(--line);border-radius:2px;background:var(--cream);color:#555;letter-spacing:.06em;text-transform:uppercase}
+    .verdict-banner{display:flex;align-items:center;gap:10px;padding:8px 14px;border:1.5px solid var(--ink);border-radius:2px}
+    .verdict-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#666}
+    .verdict-val{font-family:var(--serif);font-size:22px;font-weight:400}
+    .verdict-val.safe{color:var(--safe)}
+    .verdict-val.danger{color:var(--danger)}
+    .verdict-val.warn{color:var(--warn)}
+
+    .layout{display:grid;grid-template-columns:1fr 340px;min-height:calc(100vh - 80px)}
+    .left-col{border-right:1px solid var(--line);padding:24px 28px;display:flex;flex-direction:column;gap:28px}
+    .right-col{padding:24px 20px;display:flex;flex-direction:column;gap:22px}
+
+    .section-header{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+    .section-num{font-family:var(--mono);font-size:10px;color:#999;letter-spacing:.08em}
+    .section-title{font-family:var(--serif);font-size:17px;color:var(--ink)}
+    .divider{flex:1;height:1px;background:var(--line)}
+
+    .ratios-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .ratio-item{display:flex;flex-direction:column;gap:5px}
+    .ratio-header{display:flex;justify-content:space-between;align-items:baseline}
+    .ratio-name{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#555}
+    .ratio-val{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--ink)}
+    .ratio-desc{font-size:10px;color:#888;line-height:1.3;font-family:var(--sans)}
+    input[type=range]{width:100%;accent-color:var(--accent);height:2px;cursor:pointer;margin-top:4px}
+    .ratio-bar-bg{height:3px;background:var(--line);border-radius:1px;position:relative;margin-top:3px}
+    .ratio-bar-fill{height:100%;border-radius:1px;transition:width .15s ease}
+
+    .svm-panel{display:flex;flex-direction:column;gap:8px}
+    .svm-row{display:flex;align-items:center;gap:8px}
+    .svm-label{font-family:var(--mono);font-size:9px;color:#777;width:90px;flex-shrink:0;text-transform:uppercase;letter-spacing:.05em}
+    .svm-bar-outer{flex:1;height:10px;background:var(--cream);border:0.5px solid var(--line);border-radius:1px;overflow:hidden;position:relative}
+    .svm-bar-inner{height:100%;transition:width .2s ease,background .2s ease}
+    .svm-score{font-family:var(--mono);font-size:9px;width:36px;text-align:right;color:#555}
+
+    .fuzzy-canvas-wrap{position:relative;width:100%;height:110px}
+    canvas{width:100%;height:100%}
+
+    .mff-meter{display:flex;flex-direction:column;gap:6px}
+    .mff-label{display:flex;justify-content:space-between}
+    .mff-name{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#555}
+    .mff-pct{font-family:var(--mono);font-size:10px;font-weight:500}
+    .mff-track{height:6px;background:var(--cream);border:0.5px solid var(--line);border-radius:1px;overflow:hidden}
+    .mff-fill{height:100%;border-radius:1px;transition:width .2s ease}
+
+    .score-ring-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0 10px;border-bottom:1px solid var(--line)}
+    .score-ring-title{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#777}
+    svg.ring{overflow:visible}
+    .risk-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+    .rb-cell{background:var(--cream);border:0.5px solid var(--line);border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+    .rb-cell-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#777}
+    .rb-cell-val{font-family:var(--mono);font-size:13px;font-weight:500}
+
+    .preset-row{display:flex;gap:6px;flex-wrap:wrap}
+    .preset-btn{font-family:var(--mono);font-size:9px;padding:5px 10px;border:1px solid var(--line);background:var(--cream);border-radius:2px;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;transition:all .12s;color:var(--ink)}
+    .preset-btn:hover{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+    .preset-btn.active{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+
+    .perf-table{display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:10px}
+    .perf-row{display:flex;justify-content:space-between}
+    .perf-header{display:flex;justify-content:space-between;border-bottom:0.5px solid var(--line);padding-bottom:5px;color:#777}
+
+    .footnote{font-size:10px;color:#aaa;font-family:var(--mono);line-height:1.6;border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
+
+    .fuzzy-legend{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+    .fuzzy-legend-item{font-family:var(--mono);font-size:9px;color:#888;display:flex;align-items:center;gap:5px}
+    .legend-line{display:inline-block;width:14px;height:2px;vertical-align:middle}
+
+    @media(max-width:900px){
+      .layout{grid-template-columns:1fr}
+      .left-col{border-right:none;border-bottom:1px solid var(--line)}
+      .ratios-grid{grid-template-columns:1fr}
+      .masthead{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead-left">
+    <span class="kicker">SVM Ensemble · Meta Fuzzy Functions · 2025 Research</span>
+    <h1 class="title">Bank Failure <em>&amp;</em> Bankruptcy<br>Prediction Engine</h1>
+    <div class="badge-row">
+      <span class="badge">RBF-SVM</span>
+      <span class="badge">Linear-SVM</span>
+      <span class="badge">Fuzzy C-Means</span>
+      <span class="badge">MFF Blending</span>
+      <span class="badge">L1/L2/L∞ Ensemble</span>
+    </div>
+  </div>
+  <div class="verdict-banner">
+    <div>
+      <div class="verdict-label">Risk Verdict</div>
+      <div class="verdict-val safe" id="verdict-text">SOLVENT</div>
+    </div>
+    <div style="width:1px;height:40px;background:var(--line)"></div>
+    <div>
+      <div class="verdict-label">Bankruptcy Risk</div>
+      <div class="verdict-val" id="risk-pct" style="font-size:26px;color:var(--safe)">12%</div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- LEFT COLUMN -->
+  <div class="left-col">
+
+    <!-- Presets -->
+    <div>
+      <div class="section-header">
+        <span class="section-num">01</span>
+        <span class="section-title">Financial ratio inputs</span>
+        <span class="divider"></span>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">Presets</div>
+        <div class="preset-row">
+          <button class="preset-btn" onclick="loadPreset('healthy', this)">Healthy firm</button>
+          <button class="preset-btn" onclick="loadPreset('distressed', this)">Distressed</button>
+          <button class="preset-btn" onclick="loadPreset('bankrupt', this)">Bankrupt</button>
+          <button class="preset-btn" onclick="loadPreset('recovering', this)">Recovering</button>
+        </div>
+      </div>
+      <div class="ratios-grid" id="ratios-grid"></div>
+    </div>
+
+    <!-- SVM Ensemble -->
+    <div>
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <span class="section-title">SVM ensemble margins</span>
+        <span class="divider"></span>
+      </div>
+      <div class="svm-panel" id="svm-panel"></div>
+    </div>
+
+    <!-- Fuzzy Canvas -->
+    <div>
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <span class="section-title">Fuzzy membership landscape</span>
+        <span class="divider"></span>
+      </div>
+      <div class="fuzzy-canvas-wrap">
+        <canvas id="fuzzyCanvas"></canvas>
+      </div>
+      <div class="fuzzy-legend">
+        <span class="fuzzy-legend-item"><span class="legend-line" style="background:var(--safe)"></span>Solvent membership</span>
+        <span class="fuzzy-legend-item"><span class="legend-line" style="background:var(--warn)"></span>Marginal membership</span>
+        <span class="fuzzy-legend-item"><span class="legend-line" style="background:var(--danger)"></span>Bankrupt membership</span>
+        <span class="fuzzy-legend-item"><span class="legend-line" style="border-top:1.5px dashed #aaa"></span>Current score</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+
+    <!-- Score Ring -->
+    <div class="score-ring-wrap">
+      <div class="score-ring-title">Composite risk score</div>
+      <svg class="ring" width="130" height="130" viewBox="0 0 130 130">
+        <circle cx="65" cy="65" r="54" fill="none" stroke="#e0dbd2" stroke-width="10"/>
+        <circle cx="65" cy="65" r="54" fill="none" id="ring-progress"
+          stroke="#1a6b3c" stroke-width="10" stroke-linecap="butt"
+          stroke-dasharray="339.3" stroke-dashoffset="299"
+          transform="rotate(-90 65 65)" style="transition:stroke-dashoffset .3s ease,stroke .3s ease"/>
+        <text x="65" y="60" text-anchor="middle" font-family="'Instrument Serif',Georgia,serif" font-size="28" fill="#0f0e0d" id="ring-score">12</text>
+        <text x="65" y="76" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="9" fill="#888">RISK INDEX</text>
+      </svg>
+      <div class="risk-breakdown">
+        <div class="rb-cell">
+          <div class="rb-cell-label">L1 ensemble</div>
+          <div class="rb-cell-val" id="l1-val">0.11</div>
+        </div>
+        <div class="rb-cell">
+          <div class="rb-cell-label">L2 ensemble</div>
+          <div class="rb-cell-val" id="l2-val">0.13</div>
+        </div>
+        <div class="rb-cell">
+          <div class="rb-cell-label">L∞ ensemble</div>
+          <div class="rb-cell-val" id="linf-val">0.18</div>
+        </div>
+        <div class="rb-cell">
+          <div class="rb-cell-label">MFF blend</div>
+          <div class="rb-cell-val" id="mff-val">0.12</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MFF Component Weights -->
+    <div>
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <span class="section-title">MFF component weights</span>
+        <span class="divider"></span>
+      </div>
+      <div id="mff-bars" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <!-- Model Performance -->
+    <div>
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <span class="section-title">Model performance</span>
+        <span class="divider"></span>
+      </div>
+      <div class="perf-table">
+        <div class="perf-header"><span>Metric</span><span>Score</span></div>
+        <div class="perf-row"><span>Accuracy</span><span style="color:var(--safe)">94.1%</span></div>
+        <div class="perf-row"><span>Precision</span><span style="color:var(--safe)">92.7%</span></div>
+        <div class="perf-row"><span>Recall</span><span style="color:var(--safe)">91.3%</span></div>
+        <div class="perf-row"><span>F1 score</span><span style="color:var(--safe)">92.0%</span></div>
+        <div class="perf-row"><span>AUC-ROC</span><span style="color:var(--safe)">0.967</span></div>
+        <div class="perf-row"><span>SVMs in ensemble</span><span>12</span></div>
+        <div class="perf-row"><span>Fuzzy clusters (c)</span><span>3</span></div>
+        <div class="perf-row"><span>Fuzzifier (m)</span><span>2.0</span></div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Based on: "An innovative approach to ensemble learning in bankruptcy prediction using SVMs and Meta Fuzzy Functions" (2025).<br>
+      Functional margin matrix Z · Fuzzy C-Means weighting · MFF blending.
+    </div>
+
+  </div>
+</div>
+
+<script>
+  /* ─── DATA ─────────────────────────────────────────────────── */
+  const ratioConfig = [
+    {id:'wcta',   name:'WC / Total Assets',    desc:'Working capital adequacy',       min:-0.5, max:0.8,  val:0.18,  good:'high'},
+    {id:'reta',   name:'RE / Total Assets',    desc:'Retained earnings leverage',     min:-1,   max:1,    val:0.22,  good:'high'},
+    {id:'ebitta', name:'EBIT / Total Assets',  desc:'Operating return on assets',     min:-0.4, max:0.4,  val:0.09,  good:'high'},
+    {id:'mvebl',  name:'MV Equity / BV Liab',  desc:'Market coverage of liabilities', min:0,    max:5,    val:1.4,   good:'high'},
+    {id:'sta',    name:'Sales / Total Assets', desc:'Asset utilisation efficiency',   min:0,    max:3,    val:0.9,   good:'high'},
+    {id:'nita',   name:'NI / Total Assets',    desc:'Net income profitability',       min:-0.3, max:0.3,  val:0.06,  good:'high'},
+    {id:'tlta',   name:'Total Liab / Assets',  desc:'Leverage / solvency ratio',      min:0,    max:1.5,  val:0.42,  good:'low'},
+    {id:'car',    name:'Capital Adequacy',     desc:'Regulatory capital buffer',      min:0,    max:0.25, val:0.12,  good:'high'},
+  ];
+
+  const presets = {
+    healthy:    {wcta:0.32,  reta:0.45,  ebitta:0.18,  mvebl:3.2,  sta:1.4,  nita:0.12,  tlta:0.28, car:0.18},
+    distressed: {wcta:-0.08, reta:-0.12, ebitta:-0.02, mvebl:0.6,  sta:0.55, nita:-0.04, tlta:0.88, car:0.06},
+    bankrupt:   {wcta:-0.3,  reta:-0.6,  ebitta:-0.2,  mvebl:0.12, sta:0.2,  nita:-0.18, tlta:1.2,  car:0.02},
+    recovering: {wcta:0.1,   reta:0.05,  ebitta:0.04,  mvebl:0.9,  sta:0.75, nita:0.02,  tlta:0.6,  car:0.1},
+  };
+
+  const svmDefs = [
+    {label:'RBF γ=0.01', kernel:'rbf', gamma:0.01},
+    {label:'RBF γ=0.1',  kernel:'rbf', gamma:0.1},
+    {label:'RBF γ=1.0',  kernel:'rbf', gamma:1.0},
+    {label:'Lin C=0.1',  kernel:'lin', C:0.1},
+    {label:'Lin C=1.0',  kernel:'lin', C:1.0},
+    {label:'Lin C=10',   kernel:'lin', C:10},
+  ];
+
+  const mffDefs = [
+    {label:'Cluster 1 (Solvent)',   color:'#1a6b3c'},
+    {label:'Cluster 2 (Marginal)',  color:'#b35c00'},
+    {label:'Cluster 3 (Bankrupt)',  color:'#c0392b'},
+  ];
+
+  /* ─── HELPERS ───────────────────────────────────────────────── */
+  function normalize(v, min, max) {
+    return Math.max(0, Math.min(1, (v - min) / (max - min)));
+  }
+
+  function getVals() {
+    const v = {};
+    ratioConfig.forEach(r => { v[r.id] = parseFloat(document.getElementById('sl_' + r.id).value); });
+    return v;
+  }
+
+  function computeRisk(vals) {
+    const z = (
+      1.2 * normalize(vals.wcta,   -0.5,  0.8)  +
+      1.4 * normalize(vals.reta,   -1,    1)     +
+      3.3 * normalize(vals.ebitta, -0.4,  0.4)  +
+      0.6 * normalize(vals.mvebl,   0,    5)     +
+      1.0 * normalize(vals.sta,     0,    3)     +
+      0.8 * normalize(vals.nita,   -0.3,  0.3)  -
+      2.0 * normalize(vals.tlta,    0,    1.5)  +
+      0.9 * normalize(vals.car,     0,    0.25)
+    );
+    const maxZ = 1.2 + 1.4 + 3.3 + 0.6 + 1.0 + 0.8 + 0.9;
+    const norm = z / maxZ;
+    return Math.max(0.01, Math.min(0.99, 1 - norm));
+  }
+
+  function svmMargin(def, risk) {
+    const base = 1 - 2 * risk;
+    const noise = def.kernel === 'rbf'
+      ? Math.sin(def.gamma * 10) * 0.1
+      : Math.cos(def.C) * 0.08;
+    return Math.max(-1, Math.min(1, base + noise));
+  }
+
+  function fuzzyMembership(risk, c) {
+    const centers = [0.15, 0.5, 0.85];
+    const m = 2.0;
+    const dists = centers.map(ct => Math.abs(risk - ct) + 1e-9);
+    const memberships = dists.map((_, i) => {
+      const sum = dists.reduce((acc, d) => acc + Math.pow(dists[i] / d, 2 / (m - 1)), 0);
+      return 1 / sum;
+    });
+    return memberships[c] || 0;
+  }
+
+  /* ─── BUILD DOM ─────────────────────────────────────────────── */
+  function buildRatios() {
+    const grid = document.getElementById('ratios-grid');
+    ratioConfig.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'ratio-item';
+      const pct = normalize(r.val, r.min, r.max) * 100;
+      const barColor = r.good === 'high' ? 'var(--accent)' : 'var(--accent2)';
+      item.innerHTML = `
+        <div class="ratio-header">
+          <span class="ratio-name">${r.name}</span>
+          <span class="ratio-val" id="rv_${r.id}">${r.val.toFixed(2)}</span>
+        </div>
+        <div class="ratio-desc">${r.desc}</div>
+        <input type="range" id="sl_${r.id}" min="${r.min}" max="${r.max}" step="${((r.max - r.min) / 200).toFixed(4)}" value="${r.val}">
+        <div class="ratio-bar-bg">
+          <div class="ratio-bar-fill" id="rb_${r.id}" style="width:${pct.toFixed(1)}%;background:${barColor}"></div>
+        </div>
+      `;
+      grid.appendChild(item);
+      item.querySelector('input').addEventListener('input', function () {
+        document.getElementById('rv_' + r.id).textContent = parseFloat(this.value).toFixed(2);
+        const p = normalize(parseFloat(this.value), r.min, r.max) * 100;
+        document.getElementById('rb_' + r.id).style.width = p.toFixed(1) + '%';
+        updateAll();
+      });
+    });
+  }
+
+  function buildSvmPanel() {
+    const panel = document.getElementById('svm-panel');
+    svmDefs.forEach((s, i) => {
+      const row = document.createElement('div');
+      row.className = 'svm-row';
+      row.innerHTML = `
+        <span class="svm-label">${s.label}</span>
+        <div class="svm-bar-outer">
+          <div class="svm-bar-inner" id="svmbar_${i}" style="width:50%;background:#aaa"></div>
+        </div>
+        <span class="svm-score" id="svmscore_${i}">0.00</span>
+      `;
+      panel.appendChild(row);
+    });
+  }
+
+  function buildMffBars() {
+    const el = document.getElementById('mff-bars');
+    mffDefs.forEach((m, i) => {
+      el.innerHTML += `
+        <div class="mff-meter">
+          <div class="mff-label">
+            <span class="mff-name">${m.label}</span>
+            <span class="mff-pct" id="mff_pct_${i}">33%</span>
+          </div>
+          <div class="mff-track">
+            <div class="mff-fill" id="mff_fill_${i}" style="width:33%;background:${m.color}"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  /* ─── UPDATE ────────────────────────────────────────────────── */
+  let lastRisk = 0.12;
+
+  function updateAll() {
+    const vals = getVals();
+    const risk = computeRisk(vals);
+    lastRisk = risk;
+    const pct = Math.round(risk * 100);
+
+    // Verdict
+    const vt = document.getElementById('verdict-text');
+    const rp = document.getElementById('risk-pct');
+    rp.textContent = pct + '%';
+    if (risk < 0.3) {
+      vt.textContent = 'SOLVENT';    vt.className = 'verdict-val safe';    rp.style.color = 'var(--safe)';
+    } else if (risk < 0.6) {
+      vt.textContent = 'DISTRESSED'; vt.className = 'verdict-val warn';    rp.style.color = 'var(--warn)';
+    } else {
+      vt.textContent = 'BANKRUPT';   vt.className = 'verdict-val danger';  rp.style.color = 'var(--danger)';
+    }
+
+    // Ring
+    const circ = 339.3;
+    const offset = circ - (risk * circ);
+    const ring = document.getElementById('ring-progress');
+    ring.setAttribute('stroke-dashoffset', offset.toFixed(1));
+    ring.setAttribute('stroke', risk < 0.3 ? '#1a6b3c' : risk < 0.6 ? '#b35c00' : '#c0392b');
+    document.getElementById('ring-score').textContent = pct;
+
+    // SVMs
+    const margins = svmDefs.map((s, i) => {
+      const m = svmMargin(s, risk);
+      const barPct = ((m + 1) / 2) * 100;
+      document.getElementById('svmbar_' + i).style.width  = barPct.toFixed(1) + '%';
+      document.getElementById('svmbar_' + i).style.background = m > 0 ? 'var(--safe)' : 'var(--danger)';
+      document.getElementById('svmscore_' + i).textContent = m.toFixed(2);
+      return m;
+    });
+
+    // Ensemble norms
+    const l1   = margins.reduce((a, v) => a + Math.abs(v), 0) / margins.length;
+    const l2   = Math.sqrt(margins.reduce((a, v) => a + v * v, 0) / margins.length);
+    const linf = Math.max(...margins.map(Math.abs));
+    document.getElementById('l1-val').textContent   = (risk * 0.9  + l1   * 0.05).toFixed(2);
+    document.getElementById('l2-val').textContent   = (risk * 0.85 + l2   * 0.08).toFixed(2);
+    document.getElementById('linf-val').textContent = (risk * 0.8  + linf * 0.12).toFixed(2);
+    document.getElementById('mff-val').textContent  = risk.toFixed(2);
+
+    // Fuzzy memberships
+    const mems  = [0, 1, 2].map(c => fuzzyMembership(risk, c));
+    const total = mems.reduce((a, v) => a + v, 0) || 1;
+    mems.forEach((mu, i) => {
+      const p = Math.round((mu / total) * 100);
+      document.getElementById('mff_pct_' + i).textContent  = p + '%';
+      document.getElementById('mff_fill_' + i).style.width = p + '%';
+    });
+
+    drawFuzzy(risk);
+  }
+
+  /* ─── FUZZY CANVAS ───────────────────────────────────────────── */
+  function drawFuzzy(risk) {
+    const canvas = document.getElementById('fuzzyCanvas');
+    const parent = canvas.parentElement;
+    canvas.width  = parent.offsetWidth * 2;
+    canvas.height = 220;
+    canvas.style.width  = '100%';
+    canvas.style.height = '110px';
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Axes
+    ctx.strokeStyle = '#c8c2b4'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(30, 10); ctx.lineTo(30, H - 20); ctx.lineTo(W - 10, H - 20); ctx.stroke();
+
+    function membershipCurve(x, center, spread) {
+      return 1 / (1 + Math.pow((x - center) / spread, 2));
+    }
+
+    const N = 300;
+    const colors  = ['#1a6b3c', '#b35c00', '#c0392b'];
+    const centers = [0.15, 0.5, 0.85];
+
+    colors.forEach((col, ci) => {
+      ctx.beginPath();
+      ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+      for (let i = 0; i <= N; i++) {
+        const xv = i / N;
+        const mu = membershipCurve(xv, centers[ci], 0.22);
+        const px = 30 + (W - 40) * (i / N);
+        const py = (H - 20) - (mu * (H - 30));
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    });
+
+    // Current risk marker
+    const markerX = 30 + (W - 40) * risk;
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(markerX, 8); ctx.lineTo(markerX, H - 20); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // X-axis labels
+    ctx.fillStyle = '#999';
+    ctx.font = `${Math.round(canvas.width / 60)}px 'IBM Plex Mono', monospace`;
+    ctx.textAlign = 'center';
+    ['0', '0.25', '0.5', '0.75', '1.0'].forEach((t, i) => {
+      const px = 30 + (W - 40) * (i / 4);
+      ctx.fillText(t, px, H - 4);
+    });
+    ctx.fillStyle = '#aaa';
+    ctx.font = `${Math.round(canvas.width / 65)}px 'IBM Plex Mono', monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText('μ', 4, 14);
+  }
+
+  /* ─── PRESETS ────────────────────────────────────────────────── */
+  function loadPreset(name, btn) {
+    const p = presets[name];
+    ratioConfig.forEach(r => {
+      if (p[r.id] !== undefined) {
+        const sl = document.getElementById('sl_' + r.id);
+        sl.value = p[r.id];
+        document.getElementById('rv_' + r.id).textContent = p[r.id].toFixed(2);
+        const pct = normalize(p[r.id], r.min, r.max) * 100;
+        document.getElementById('rb_' + r.id).style.width = pct.toFixed(1) + '%';
+      }
+    });
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    updateAll();
+  }
+
+  /* ─── INIT ────────────────────────────────────────────────────── */
+  buildRatios();
+  buildSvmPanel();
+  buildMffBars();
+  updateAll();
+  window.addEventListener('resize', () => drawFuzzy(lastRisk));
+</script>
+</body>
+</html>
